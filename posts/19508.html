@@ -1,0 +1,295 @@
+<!DOCTYPE html><html lang="en" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>GOLANG GMP 原理与调度 | Jing's Blog</title><meta name="author" content="Jing"><meta name="copyright" content="Jing"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="GMP 原理与调度Golang调度器1. 单进程不需要调度器 在早期的操作系统中，每个程序对应一个进程，而cpu执行计算任务的时候，都是单进程，一个进程执行完了 才能执行下一个进程，所有都是串行进行的，这样就会有以下的两个问题  单一的执行流程，计算机只能一个任务一个任务处理 进程阻塞所带来的 CPU 时间浪费  后来操作系统就具有了最早的并发能力：多进程并发，当一个进程阻塞的时候，切换到另外等待">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GOLANG GMP 原理与调度">
+<meta property="og:url" content="https://jing21.github.io/posts/19508.html">
+<meta property="og:site_name" content="Jing's Blog">
+<meta property="og:description" content="GMP 原理与调度Golang调度器1. 单进程不需要调度器 在早期的操作系统中，每个程序对应一个进程，而cpu执行计算任务的时候，都是单进程，一个进程执行完了 才能执行下一个进程，所有都是串行进行的，这样就会有以下的两个问题  单一的执行流程，计算机只能一个任务一个任务处理 进程阻塞所带来的 CPU 时间浪费  后来操作系统就具有了最早的并发能力：多进程并发，当一个进程阻塞的时候，切换到另外等待">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://jing21.github.io/image/volcano%20park.JPG">
+<meta property="article:published_time" content="2025-07-08T08:10:26.000Z">
+<meta property="article:modified_time" content="2025-07-08T08:14:48.993Z">
+<meta property="article:author" content="Jing">
+<meta property="article:tag" content="GOLANG">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://jing21.github.io/image/volcano%20park.JPG"><link rel="shortcut icon" href="/image/images.png"><link rel="canonical" href="https://jing21.github.io/posts/19508.html"><link rel="preconnect" href="//cdn.jsdelivr.net"><link rel="preconnect" href="//busuanzi.ibruce.info"><link rel="stylesheet" href="/css/index.css?v=4.13.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"languages":{"hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: 'Copy Successful',
+    error: 'Copy Error',
+    noSupport: 'Browser Not Supported'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: 'Just now',
+    min: 'minutes ago',
+    hour: 'hours ago',
+    day: 'days ago',
+    month: 'months ago'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.11.1/dist/infinitegrid.min.js',
+    buttonText: 'Load More'
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'GOLANG GMP 原理与调度',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2025-07-08 16:14:48'
+}</script><script>(win=>{
+      win.saveToLocal = {
+        set: (key, value, ttl) => {
+          if (ttl === 0) return
+          const now = Date.now()
+          const expiry = now + ttl * 86400000
+          const item = {
+            value,
+            expiry
+          }
+          localStorage.setItem(key, JSON.stringify(item))
+        },
+      
+        get: key => {
+          const itemStr = localStorage.getItem(key)
+      
+          if (!itemStr) {
+            return undefined
+          }
+          const item = JSON.parse(itemStr)
+          const now = Date.now()
+      
+          if (now > item.expiry) {
+            localStorage.removeItem(key)
+            return undefined
+          }
+          return item.value
+        }
+      }
+    
+      win.getScript = (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        script.onerror = reject
+        script.onload = script.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          script.onload = script.onreadystatechange = null
+          resolve()
+        }
+
+        Object.keys(attr).forEach(key => {
+          script.setAttribute(key, attr[key])
+        })
+
+        document.head.appendChild(script)
+      })
+    
+      win.getCSS = (url, id = false) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onerror = reject
+        link.onload = link.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          link.onload = link.onreadystatechange = null
+          resolve()
+        }
+        document.head.appendChild(link)
+      })
+    
+      win.activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+          const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+          const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+
+          if (t === undefined) {
+            if (isLightMode) activateLightMode()
+            else if (isDarkMode) activateDarkMode()
+            else if (isNotSpecified || hasNoSupport) {
+              const now = new Date()
+              const hour = now.getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            window.matchMedia('(prefers-color-scheme: dark)').addListener(e => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else if (t === 'light') activateLightMode()
+          else activateDarkMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+      const detectApple = () => {
+        if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+          document.documentElement.classList.add('apple')
+        }
+      }
+      detectApple()
+    })(window)</script><link rel="stylesheet" href="/css/modify.css"><meta name="generator" content="Hexo 7.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/image/volcano%20park.JPG" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">Articles</div><div class="length-num">3</div></a><a href="/tags/"><div class="headline">Tags</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">Categories</div><div class="length-num">3</div></a></div><hr class="custom-hr"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background: transparent"><nav id="nav"><span id="blog-info"><a href="/" title="Jing's Blog"><span class="site-name">Jing's Blog</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> Search</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav><div id="post-info"><h1 class="post-title">GOLANG GMP 原理与调度</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">Created</span><time class="post-meta-date-created" datetime="2025-07-08T08:10:26.000Z" title="Created 2025-07-08 16:10:26">2025-07-08</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">Updated</span><time class="post-meta-date-updated" datetime="2025-07-08T08:14:48.993Z" title="Updated 2025-07-08 16:14:48">2025-07-08</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/GOLANG/">GOLANG</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="GOLANG GMP 原理与调度"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">Post Views:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h1 id="GMP-原理与调度"><a href="#GMP-原理与调度" class="headerlink" title="GMP 原理与调度"></a>GMP 原理与调度</h1><h2 id="Golang调度器"><a href="#Golang调度器" class="headerlink" title="Golang调度器"></a>Golang调度器</h2><h3 id="1-单进程不需要调度器"><a href="#1-单进程不需要调度器" class="headerlink" title="1. 单进程不需要调度器"></a>1. 单进程不需要调度器</h3><p><img src="https://github.com/JING21/GO/raw/main/GMP/single-process.png" alt="image-20220124101427219"></p>
+<p>在早期的操作系统中，每个程序对应一个进程，而cpu执行计算任务的时候，都是单进程，一个进程执行完了</p>
+<p>才能执行下一个进程，所有都是串行进行的，这样就会有以下的两个问题</p>
+<ul>
+<li>单一的执行流程，计算机只能一个任务一个任务处理</li>
+<li>进程阻塞所带来的 CPU 时间浪费</li>
+</ul>
+<p>后来操作系统就具有了<strong>最早的并发能力：多进程并发</strong>，当一个进程阻塞的时候，切换到另外等待执行的进程，这样就能尽量把 CPU 利用起来，不浪费CPU资源</p>
+<h3 id="2-多进程-线程需要调度器"><a href="#2-多进程-线程需要调度器" class="headerlink" title="2.多进程/线程需要调度器"></a>2.多进程/线程需要调度器</h3><p><img src="https://github.com/JING21/GO/raw/main/GMP/%E5%A4%9A%E8%BF%9B%E7%A8%8B.png" alt="多进程"></p>
+<p>在多进程 / 多线程的操作系统中，就解决了阻塞的问题，因为一个进程阻塞 cpu 可以立刻切换到其他进程中去执行，而且调度 cpu 的算法可以保证在运行的进程都可以被分配到 cpu 的运行时间片。这样从宏观来看，似乎多个进程是在同时被运行。<br>但新的问题就又出现了，进程拥有太多的资源，进程的创建、切换、销毁，都会占用很长的时间，CPU 虽然利用起来了，但如果进程过多，CPU 有很大的一部分都被用来进行进程调度了。</p>
+<p>很明显，CPU 调度切换的是进程和线程。尽管线程看起来很美好，但实际上多线程开发设计会变得更加复杂，要考虑很多同步竞争等问题，如锁、竞争冲突等。</p>
+<p>多进程、多线程已经提高了系统的并发能力，但是在当今互联网高并发场景下，为每个任务都创建一个线程是不现实的，因为会消耗大量的内存 (进程虚拟内存会占用 4GB [32 位操作系统], 而线程也要大约 4MB)。<br>大量的进程 / 线程出现了新的问题</p>
+<ul>
+<li>高内存占用</li>
+<li>调度的高消耗 CPU</li>
+</ul>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/coroutine&amp;thread.png" alt="image-20220325165240009"></p>
+<p>一个线程分为 “内核态 “线程和” 用户态 “线程。一个 “用户态线程” 必须要绑定一个 “内核态线程”，但是 CPU 并不知道有 “用户态线程” 的存在，它只知道它运行的是一个 “内核态线程”(Linux 的 PCB 进程控制块)。内核线程依然叫 “线程 (thread)”，用户线程叫 “协程 (co-routine)”。</p>
+<p>协程和线程有三种对应关系，分别是1:1,N:1和N:N</p>
+<p>N:1 关系<br>N 个协程绑定 1 个线程，优点就是<strong>协程在用户态线程即完成切换，不会陷入到内核态，这种切换非常的轻量快速</strong>。但也有很大的缺点，1 个进程的所有协程都绑定在 1 个线程上<br>缺点：</p>
+<ul>
+<li>某个程序用不了硬件的多核加速能力</li>
+<li>一旦某协程阻塞，造成线程阻塞，本进程的其他协程都无法执行了，根本就没有并发的能力了。</li>
+</ul>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/N1model.png" alt="image-20220408094430548"></p>
+<p>1:1 关系<br>1 个协程绑定 1 个线程，这种最容易实现。协程的调度都由 CPU 完成了，不存在 N:1 缺点，<br>缺点：</p>
+<ul>
+<li>协程的创建、删除和切换的代价都由 CPU 完成，有点略显昂贵了。</li>
+</ul>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/11Model.png" alt="image-20220408094407894"></p>
+<p>M:N 关系<br>M 个协程绑定 1 个线程，是 N:1 和 1:1 类型的结合。</p>
+<p> 协程跟线程是有区别的，线程由 CPU 调度是抢占式的，<strong>协程由用户态调度是协作式的</strong>，一个协程让出 CPU 后，才执行下一个协程。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/MNmodel.png" alt="image-20220408094223883"></p>
+<h2 id="3-GO语言的协程goroutine"><a href="#3-GO语言的协程goroutine" class="headerlink" title="3.GO语言的协程goroutine"></a>3.GO语言的协程goroutine</h2><p><strong>Go 为了提供更容易使用的并发方法，使用了 goroutine 和 channel</strong>。goroutine 来自协程的概念，让一组可复用的函数运行在一组线程之上，即使有协程阻塞，该线程的其他协程也可以被 <code>runtime</code> 调度，转移到其他可运行的线程上</p>
+<p>在GO语言中，对应的用户线程（协程）被称为goroutine，是个非常轻量级的设计，一个goroutine只占几个KB，并且运行为一个goroutine也只需要几KB。这样从内存的角度而言，可以支持大量的并发。并且虽然goroutine的栈只占几KB，实际上它可以伸缩。如果在有需要的情况下，runtime会自动为goroutine分配资源<br>Goroutine 特点：</p>
+<ul>
+<li>占用内存更小（几 kb）</li>
+<li>调度更灵活 (runtime 调度)</li>
+</ul>
+<h3 id="原先的GM模型"><a href="#原先的GM模型" class="headerlink" title="原先的GM模型"></a>原先的GM模型</h3><p><img src="https://github.com/JING21/GO/raw/main/GMP/GMmodel.png" alt="image-20220408110753527"></p>
+<p> G 来表示 Goroutine，用 M 来表示线程</p>
+<p>M 想要执行、放回 G 都必须访问全局 G 队列，并且 M 有多个，即多线程访问同一资源需要加锁进行保证互斥 / 同步，所以全局 G 队列是有互斥锁进行保护的。<br>老调度器有几个缺点：</p>
+<ol>
+<li>创建、销毁、调度 G 都需要每个 M 获取锁，这就形成了<strong>激烈的锁竞争</strong>。</li>
+<li>M 转移 G 会造成<strong>延迟和额外的系统负载</strong>。比如当 G 中包含创建新协程的时候，M 创建了 G’，为了继续执行 G，需要把 G’交给 M’执行，也造成了<strong>很差的局部性</strong>，因为 G’和 G 是相关的，最好放在 M 上执行，而不是其他 M’。</li>
+<li>系统调用 (CPU 在 M 之间的切换) 导致频繁的线程阻塞和取消阻塞操作增加了系统开销。</li>
+</ol>
+<h3 id="GMP模型"><a href="#GMP模型" class="headerlink" title="GMP模型"></a>GMP模型</h3><p><img src="https://github.com/JING21/GO/raw/main/GMP/GMP.png" alt="image-20220408151755837"></p>
+<ol>
+<li><strong>全局队列</strong>（Global Queue）：存放等待运行的 G。</li>
+<li><strong>P 的本地队列</strong>：同全局队列类似，存放的也是等待运行的 G，存的数量有限，不超过 256 个。新建 G’时，G’优先加入到 P 的本地队列，如果队列满了，则会把本地队列中一半的 G 移动到全局队列。</li>
+<li><strong>P 列表</strong>：所有的 P 都在程序启动时创建，并保存在数组中，最多有 <code>GOMAXPROCS</code>(可配置) 个。</li>
+<li><strong>M</strong>：线程想运行任务就得获取 P，从 P 的本地队列获取 G，P 队列为空时，M 也会尝试从全局队列<strong>拿</strong>一批 G 放到 P 的本地队列，或从其他 P 的本地队列<strong>拿</strong>一半放到自己 P 的本地队列。M 运行 G，G 执行之后，M 会从 P 获取下一个 G，不断重复下去。</li>
+</ol>
+<p><strong>Goroutine 调度器和 OS 调度器是通过 M 结合起来的，每个 M 都代表了 1 个内核线程，OS 调度器负责把内核线程分配到 CPU 的核上执行</strong>。<br>有关 P 和 M 的个数问题<br>1、P 的数量：</p>
+<ul>
+<li>由启动时环境变量 <code>$GOMAXPROCS</code> 或者是由 <code>runtime</code> 的方法 <code>GOMAXPROCS()</code> 决定。这意味着在程序执行的任意时刻都只有 <code>$GOMAXPROCS</code> 个 goroutine 在同时运行。</li>
+</ul>
+<p>2、M 的数量:</p>
+<ul>
+<li>go 语言本身的限制：go 程序启动时，会设置 M 的最大数量，默认 10000. 但是内核很难支持这么多的线程数，所以这个限制可以忽略。</li>
+<li>runtime/debug 中的 SetMaxThreads 函数，设置 M 的最大数量</li>
+<li>一个 M 阻塞了，会创建新的 M。</li>
+</ul>
+<p>M 与 P 的数量没有绝对关系，一个 M 阻塞，P 就会去创建或者切换另一个 M，所以，即使 P 的默认数量是 1，也有可能会创建很多个 M 出来。<br>P 和 M 何时会被创建<br>1、P 何时创建：在确定了 P 的最大数量 n 后，运行时系统会根据这个数量创建 n 个 P。<br>2、M 何时创建：没有足够的 M 来关联 P 并运行其中的可运行的 G。比如所有的 M 此时都阻塞住了，而 P 中还有很多就绪任务，就会去寻找空闲的 M，而没有空闲的，就会去创建新的 M。<br>(2) 调度器的设计策略<br><strong>复用线程</strong>：避免频繁的创建、销毁线程，而是对线程的复用。<br>1）work stealing 机制<br>​ 当本线程无可运行的 G 时，尝试从其他线程绑定的 P 偷取 G，而不是销毁线程。<br>2）hand off 机制<br>​ 当本线程因为 G 进行系统调用阻塞时，线程释放绑定的 P，把 P 转移给其他空闲的线程执行。<br><strong>利用并行</strong>：<code>GOMAXPROCS</code> 设置 P 的数量，最多有 <code>GOMAXPROCS</code> 个线程分布在多个 CPU 上同时运行。<code>GOMAXPROCS</code> 也限制了并发的程度，比如 <code>GOMAXPROCS = 核数/2</code>，则最多利用了一半的 CPU 核进行并行。<br><strong>抢占</strong>：在 coroutine 中要等待一个协程主动让出 CPU 才执行下一个协程，在 Go 中，一个 goroutine 最多占用 CPU 10ms，防止其他 goroutine 被饿死，这就是 goroutine 不同于 coroutine 的一个地方。<br><strong>全局 G 队列</strong>：在新的调度器中依然有全局 G 队列，但功能已经被弱化了，当 M 执行 work stealing 从其他 P 偷不到 G 时，它可以从全局 G 队列获取 G。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/gofunction.png" alt="image-20220411111312426">go func()启动一个goroutine，即生成一个G</p>
+<ol>
+<li>go func()启动一个goroutine，即生成一个G</li>
+<li>G进入队列，如果P的局部队列满了，则进入全局队列</li>
+<li>M获取到G，并且和P绑定，M和P的关系是1对1，如果M1的本地队列为空，则优先从全局队列获取G，否则就从其他的MP队列中获取G</li>
+<li>M1通过操作系统的调度器和物理CPU进行绑定</li>
+<li>执行G的func()，若func()发生阻塞或者systemCall，则该个M会阻塞，如果当前有一些 G 在执行，runtime 会把这个线程 M 从 P 中摘除 (detach)，则会创建一个新的M（操作系统线程），或者从休眠队列取一个M，用来服务绑定于该个P</li>
+</ol>
+<h3 id="特殊的G和M"><a href="#特殊的G和M" class="headerlink" title="特殊的G和M"></a>特殊的G和M</h3><p><strong>M0</strong><br><code>M0</code> 是启动程序后的编号为 0 的主线程，这个 M 对应的实例会在全局变量 runtime.m0 中，不需要在 heap 上分配，M0 负责执行初始化操作和启动第一个 G， 在之后 M0 就和其他的 M 一样了。<br><strong>G0</strong><br><code>G0</code> 是每次启动一个 M 都会第一个创建的 gourtine，G0 仅用于负责调度的 G，G0 不指向任何可执行的函数，每个 M 都会有一个自己的 G0。在调度或系统调用时会使用 G0 的栈空间，全局变量的 G0 是 M0 的 G0。</p>
+<h3 id="调度器场景"><a href="#调度器场景" class="headerlink" title="调度器场景"></a>调度器场景</h3><ul>
+<li><p>场景 1<br>P 拥有 G1，M1 获取 P 后开始运行 G1，G1 使用 <code>go func()</code> 创建了 G2，为了局部性 G2 优先加入到 P1 的本地队列。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph1.png" alt="image-20220411154502820"></p>
+</li>
+<li><p>场景 2<br>G1 运行完成后 (函数：<code>goexit</code>)，M 上运行的 goroutine 切换为 G0，G0 负责调度时协程的切换（函数：<code>schedule</code>）。从 P 的本地队列取 G2，从 G0 切换到 G2，并开始运行 G2 (函数：<code>execute</code>)。实现了线程 M1 的复用。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph2.png" alt="image-20220411160452325"></p>
+</li>
+<li><p>场景 3和4<br>假设每个 P 的本地队列只能存 3 个 G。G2 要创建了 6 个 G，前 3 个 G（G3, G4, G5）已经加入 p1 的本地队列，p1 本地队列满了。</p>
+<p>G2 在创建 G7 的时候，发现 P1 的本地队列已满，需要执行<strong>负载均衡</strong> (把 P1 中本地队列中前一半的 G，还有新创建 G <strong>转移</strong>到全局队列)<br>（实现中并不一定是新的 G，如果 G 是 G2 之后就执行的，会被保存在本地队列，利用某个老的 G 替换新 G 加入全局队列</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph34.png" alt="image-20220411173952310"></p>
+</li>
+<li><p>场景5</p>
+<p>G2 创建 G7 时，P1 的本地队列未满，所以 G7 会被加入到 P1 的本地队列</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph5.png" alt="image-20220412100050605"></p>
+</li>
+<li><p>场景6		</p>
+<p>在创建 G 时，运行的 G 会尝试唤醒其他空闲的 P 和 M 组合去执行，假定 G2 唤醒了 M2，M2 绑定了 P2，并运行 G0，但 P2 本地队列没有 G，M2 此时为自旋线程<strong>（没有 G 但为运行状态的线程，不断寻找 G）</strong>。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph6.png" alt="image-20220412102716761"></p>
+</li>
+<li><p>场景7</p>
+<p>M2 尝试从全局队列 (简称 “GQ”) 取一批 G 放到 P2 的本地队列（函数：<code>findrunnable()</code>）。M2 从全局队列取的 G 数量符合下面的公式：<br>n = min(len(GQ)/GOMAXPROCS + 1, len(GQ/2))<br>至少从全局队列取 1 个 g，但每次不要从全局队列移动太多的 g 到 p 本地队列，给其他 p 留点。这是<strong>从全局队列到 P 本地队列的负载均衡</strong>。</p>
+<p>假定我们场景中一共有 4 个 P（GOMAXPROCS 设置为 4，那么我们允许最多就能用 4 个 P 来供 M 使用）。所以 M2 只从能从全局队列取 1 个 G（即 G3）移动 P2 本地队列，然后完成从 G0 到 G3 的切换，运行 G3。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/p7.png" alt="p7"></p>
+</li>
+<li><p>场景8</p>
+<ul>
+<li><p>假设 G2 一直在 M1 上运行，经过 2 轮后，M2 已经把 G3、G5 从全局队列获取到了 P2 的本地队列并完成运行，全局队列和 P2 的本地队列都空了，如场景 8 图的左半部分。</p>
+<p><strong>全局队列已经没有 G，那 m 就要执行 work stealing (偷取)：从其他有 G 的 P 哪里偷取一半 G 过来，放到自己的 P 本地队列</strong>。P2 从 P1 的本地队列尾部取一半的 G，本例中一半则只有 1 个 G7，放到 P2 的本地队列并执行。</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph8.png" alt="image-20220412105923959"></p>
+</li>
+</ul>
+</li>
+<li><p>场景9</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph9.png" alt="image-20220412142426339"></p>
+<p>当前 M1 和 M2 分别在运行 G2 和 G8，M3 和 M4 没有 goroutine 可以运行，M3 和 M4 处于<strong>自旋状态</strong>，它们不断寻找 goroutine</p>
+<p>自旋本质是在运行，线程在运行却没有执行 G，就变成了浪费 CPU. 为什么不销毁现场，来节约 CPU 资源。因为创建和销毁 CPU 也会浪费时间，我们<strong>希望当有新 goroutine 创建时，立刻能有 M 运行它</strong>，如果销毁再新建就增加了时延，降低了效率。当然也考虑了过多的自旋线程是浪费 CPU，所以系统中最多有 <code>GOMAXPROCS</code> 个自旋的线程 (当前例子中的 <code>GOMAXPROCS</code>=4，所以一共 4 个 P)，多余的没事做线程会让他们休眠。</p>
+</li>
+<li><p>场景10</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph10.png" alt="ph10"></p>
+<p>假定当前除了 M3 和 M4 为自旋线程，还有 M5 和 M6 为休眠的线程 (没有得到 P 的绑定，最多就只能够存在 4 个 P，所以 P 的数量应该永远是 M&gt;=P, 大部分都是 M 在抢占需要运行的 P)，G8 创建了 G9，G8 进行了<strong>阻塞的系统调用</strong>，M2 和 P2 立即解绑，P2 会执行以下判断：如果 P2 本地队列有 G、全局队列有 G 或有空闲的 M，P2 都会立马唤醒 1 个 M 和它绑定，否则 P2 则会加入到空闲 P 列表，等待 M 来获取可用的 p。本场景中，P2 本地队列有 G9，可以和其他空闲的线程 M5 绑定。</p>
+</li>
+<li><p>场景11</p>
+<p><img src="https://github.com/JING21/GO/raw/main/GMP/ph11.png" alt="image-20220413103910496"></p>
+</li>
+</ul>
+<p>G8 创建了 G9，假如 G8 进行了<strong>非阻塞系统调用</strong>。 M2 和 P2 会解绑，但 M2 会记住 P2，然后 G8 和 M2 进入<strong>系统调用</strong>状态。当 G8 和 M2 退出系统调用时，会尝试获取 P2，如果无法获取，则获取空闲的 P，如果依然没有，G8 会被记为可运行状态，并加入到全局队列，M2 因为没有 P 的绑定而变成休眠状态 (长时间休眠等待 GC 回收销毁)。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>Author: </span><span class="post-copyright-info"><a href="https://jing21.github.io">Jing</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>Link: </span><span class="post-copyright-info"><a href="https://jing21.github.io/posts/19508.html">https://jing21.github.io/posts/19508.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>Copyright Notice: </span><span class="post-copyright-info">All articles in this blog are licensed under <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> unless stating additionally.</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/GOLANG/">GOLANG</a></div><div class="post_share"><div class="social-share" data-image="/image/volcano%20park.JPG" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/js/social-share.min.js" defer=""></script></div></div><nav class="pagination-post" id="pagination"><div class="next-post pull-full"><a href="/posts/2592.html" title="Kubelet CPU管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">Next</div><div class="next_info">Kubelet CPU管理</div></div></a></div></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/image/volcano%20park.JPG" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"></div><div class="author-info__name">Jing</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">Articles</div><div class="length-num">3</div></a><a href="/tags/"><div class="headline">Tags</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">Categories</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/JING21"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://github.com/JING21" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:jameszjing21@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="/image/WechatIMG894.jpg" target="_blank" title="weixin"><i class="fab fa-weixin" style="color: #38761D;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>Announcement</span></div><div class="announcement_content">This blog shows some experience on daily work and study</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>Contents</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#GMP-%E5%8E%9F%E7%90%86%E4%B8%8E%E8%B0%83%E5%BA%A6"><span class="toc-number">1.</span> <span class="toc-text">GMP 原理与调度</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Golang%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="toc-number">1.1.</span> <span class="toc-text">Golang调度器</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%8D%95%E8%BF%9B%E7%A8%8B%E4%B8%8D%E9%9C%80%E8%A6%81%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="toc-number">1.1.1.</span> <span class="toc-text">1. 单进程不需要调度器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%A4%9A%E8%BF%9B%E7%A8%8B-%E7%BA%BF%E7%A8%8B%E9%9C%80%E8%A6%81%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="toc-number">1.1.2.</span> <span class="toc-text">2.多进程/线程需要调度器</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-GO%E8%AF%AD%E8%A8%80%E7%9A%84%E5%8D%8F%E7%A8%8Bgoroutine"><span class="toc-number">1.2.</span> <span class="toc-text">3.GO语言的协程goroutine</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%9F%E5%85%88%E7%9A%84GM%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.2.1.</span> <span class="toc-text">原先的GM模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#GMP%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.2.2.</span> <span class="toc-text">GMP模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%89%B9%E6%AE%8A%E7%9A%84G%E5%92%8CM"><span class="toc-number">1.2.3.</span> <span class="toc-text">特殊的G和M</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B0%83%E5%BA%A6%E5%99%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.2.4.</span> <span class="toc-text">调度器场景</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>Recent Post</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/19508.html" title="GOLANG GMP 原理与调度">GOLANG GMP 原理与调度</a><time datetime="2025-07-08T08:10:26.000Z" title="Created 2025-07-08 16:10:26">2025-07-08</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2592.html" title="Kubelet CPU管理">Kubelet CPU管理</a><time datetime="2024-06-14T02:32:09.000Z" title="Created 2024-06-14 10:32:09">2024-06-14</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/65526.html" title="NVIDIA共享GPU方案">NVIDIA共享GPU方案</a><time datetime="2024-06-13T08:18:35.000Z" title="Created 2024-06-13 16:18:35">2024-06-13</time></div></div></div></div></div></div></main><footer id="footer" style="background: transparent"><div id="footer-wrap"><div class="copyright">©2020 - 2025 By Jing</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="Read Mode"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="Toggle Between Light And Dark Mode"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="Toggle between Single-column and Double-column"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="Setting"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="Table Of Contents"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="Back To Top"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=4.13.0"></script><script src="/js/main.js?v=4.13.0"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"></div><script async="" data-pjax="" src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">Search</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  Loading the Database</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="Search for Posts" type="text"></div></div><hr><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=4.13.0"></script></div></div></body></html>
