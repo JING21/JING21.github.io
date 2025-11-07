@@ -1,0 +1,385 @@
+<!DOCTYPE html><html lang="en" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kuberentes kube-apiserver限流方案 | Jing's Blog</title><meta name="author" content="Jing"><meta name="copyright" content="Jing"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Kube-apiserver限流配置说明概述总体来说对Kubernetes apiserver的限流分为以下多种:  MaxInflightLimit，是server级别的限制 EventRateLimit, 是控制event事件向apiserver爆发式写入的情况，属于apiserver的一个准入控制器（admission plugin） Client断qps限流 APF(API Priorit">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kuberentes kube-apiserver限流方案">
+<meta property="og:url" content="https://jing21.github.io/posts/38758.html">
+<meta property="og:site_name" content="Jing's Blog">
+<meta property="og:description" content="Kube-apiserver限流配置说明概述总体来说对Kubernetes apiserver的限流分为以下多种:  MaxInflightLimit，是server级别的限制 EventRateLimit, 是控制event事件向apiserver爆发式写入的情况，属于apiserver的一个准入控制器（admission plugin） Client断qps限流 APF(API Priorit">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://jing21.github.io/image/volcano%20park.JPG">
+<meta property="article:published_time" content="2025-11-07T07:57:34.000Z">
+<meta property="article:modified_time" content="2025-11-07T08:17:32.396Z">
+<meta property="article:author" content="Jing">
+<meta property="article:tag" content="Kubernetes">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://jing21.github.io/image/volcano%20park.JPG"><link rel="shortcut icon" href="/image/images.png"><link rel="canonical" href="https://jing21.github.io/posts/38758.html"><link rel="preconnect" href="//cdn.jsdelivr.net"><link rel="preconnect" href="//busuanzi.ibruce.info"><link rel="stylesheet" href="/css/index.css?v=4.13.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"languages":{"hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: 'Copy Successful',
+    error: 'Copy Error',
+    noSupport: 'Browser Not Supported'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: 'Just now',
+    min: 'minutes ago',
+    hour: 'hours ago',
+    day: 'days ago',
+    month: 'months ago'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.11.1/dist/infinitegrid.min.js',
+    buttonText: 'Load More'
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: true
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kuberentes kube-apiserver限流方案',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2025-11-07 16:17:32'
+}</script><script>(win=>{
+      win.saveToLocal = {
+        set: (key, value, ttl) => {
+          if (ttl === 0) return
+          const now = Date.now()
+          const expiry = now + ttl * 86400000
+          const item = {
+            value,
+            expiry
+          }
+          localStorage.setItem(key, JSON.stringify(item))
+        },
+      
+        get: key => {
+          const itemStr = localStorage.getItem(key)
+      
+          if (!itemStr) {
+            return undefined
+          }
+          const item = JSON.parse(itemStr)
+          const now = Date.now()
+      
+          if (now > item.expiry) {
+            localStorage.removeItem(key)
+            return undefined
+          }
+          return item.value
+        }
+      }
+    
+      win.getScript = (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        script.onerror = reject
+        script.onload = script.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          script.onload = script.onreadystatechange = null
+          resolve()
+        }
+
+        Object.keys(attr).forEach(key => {
+          script.setAttribute(key, attr[key])
+        })
+
+        document.head.appendChild(script)
+      })
+    
+      win.getCSS = (url, id = false) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onerror = reject
+        link.onload = link.onreadystatechange = function() {
+          const loadState = this.readyState
+          if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+          link.onload = link.onreadystatechange = null
+          resolve()
+        }
+        document.head.appendChild(link)
+      })
+    
+      win.activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
+          const isLightMode = window.matchMedia('(prefers-color-scheme: light)').matches
+          const isNotSpecified = window.matchMedia('(prefers-color-scheme: no-preference)').matches
+          const hasNoSupport = !isDarkMode && !isLightMode && !isNotSpecified
+
+          if (t === undefined) {
+            if (isLightMode) activateLightMode()
+            else if (isDarkMode) activateDarkMode()
+            else if (isNotSpecified || hasNoSupport) {
+              const now = new Date()
+              const hour = now.getHours()
+              const isNight = hour <= 6 || hour >= 18
+              isNight ? activateDarkMode() : activateLightMode()
+            }
+            window.matchMedia('(prefers-color-scheme: dark)').addListener(e => {
+              if (saveToLocal.get('theme') === undefined) {
+                e.matches ? activateDarkMode() : activateLightMode()
+              }
+            })
+          } else if (t === 'light') activateLightMode()
+          else activateDarkMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+      const detectApple = () => {
+        if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+          document.documentElement.classList.add('apple')
+        }
+      }
+      detectApple()
+    })(window)</script><link rel="stylesheet" href="/css/modify.css"><meta name="generator" content="Hexo 7.2.0"></head><body><div id="web_bg"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/image/volcano%20park.JPG" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">Articles</div><div class="length-num">4</div></a><a href="/tags/"><div class="headline">Tags</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">Categories</div><div class="length-num">3</div></a></div><hr class="custom-hr"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background: transparent"><nav id="nav"><span id="blog-info"><a href="/" title="Jing's Blog"><span class="site-name">Jing's Blog</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> Search</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> Archives</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> Tags</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> Categories</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> Link</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> About</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav><div id="post-info"><h1 class="post-title">Kuberentes kube-apiserver限流方案</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">Created</span><time class="post-meta-date-created" datetime="2025-11-07T07:57:34.000Z" title="Created 2025-11-07 15:57:34">2025-11-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">Updated</span><time class="post-meta-date-updated" datetime="2025-11-07T08:17:32.396Z" title="Updated 2025-11-07 16:17:32">2025-11-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="Kuberentes kube-apiserver限流方案"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">Post Views:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="post-content" id="article-container"><h1 id="Kube-apiserver限流配置说明"><a href="#Kube-apiserver限流配置说明" class="headerlink" title="Kube-apiserver限流配置说明"></a>Kube-apiserver限流配置说明</h1><h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><p>总体来说对Kubernetes apiserver的限流分为以下多种:</p>
+<ul>
+<li>MaxInflightLimit，是server级别的限制</li>
+<li>EventRateLimit, 是控制event事件向apiserver爆发式写入的情况，属于apiserver的一个准入控制器（admission plugin）</li>
+<li>Client断qps限流</li>
+<li>APF(API Priority and Fairness），API优先级和公平性，属于Kubernetes的一个api对象，提供较为详细的控制限流，但是配置较为复杂</li>
+</ul>
+<p>Kubernetes底层实现限速队列使用的是令牌桶算法（Token bucket Algorithm），通过模拟一个可以容纳指定令牌数量的桶，然后以固定的速率向桶中添加令牌，从而实现对数据流的控制。每个请求都需要带上令牌从可以通过到达服务端，假设桶的容量为50，而生成的令牌速率为每秒10个，考虑到以下情况：</p>
+<ul>
+<li>正常情况: 请求低于10个每秒，桶中的令牌会逐渐增多，因为消耗不完，但是总数不会多余50</li>
+<li>流量激增: 如果请求激增至20个每秒，前几秒桶中因为有多余的令牌，请求会保持正常，但是随着时间的推移，最终收到的请求数会变成令牌生成的速率即10个每秒，多余的请求会被限制丢弃</li>
+<li>令牌溢出：当长时间服务端收不到请求，桶中的令牌数满50之后，此时生成速率不变，那生成的多余令牌会被弃置</li>
+</ul>
+<p>对应Kubernetes中具体的参数控制，可以理解为Burst参数表示桶的大小，而QPS表示令牌生成速率，那其实服务端允许1s能通过的最大请求应该就是Burst+QPS，但是不是每一秒都可以达到这个情况（参考上述情况2）</p>
+<h2 id="Kubernetes相关配置"><a href="#Kubernetes相关配置" class="headerlink" title="Kubernetes相关配置"></a>Kubernetes相关配置</h2><h3 id="kube-apiserver启动参数相关"><a href="#kube-apiserver启动参数相关" class="headerlink" title="kube-apiserver启动参数相关"></a>kube-apiserver启动参数相关</h3><p>kube apiserver端启动参数包含以下两个配置：</p>
+<ul>
+<li><p>–max-mutating-requests-inflight int 默认值为: 200 </p>
+<p>该参数表示在给定时间内的最大 mutating 请求数（UPDATE，PATCH，PUT，CREATE请求，修改资源类型的请求），默认值为200，在集群规模较大或者pod业务数量较多时可以向上调整</p>
+</li>
+<li><p>–max-requests-inflight int 默认值为: 400</p>
+<p>该参数表示在给定时间内的非 mutating 请求数（GET, LIST 请求），默认值为400，在集群规模较大或者pod业务数量较多时可以向上调整</p>
+</li>
+</ul>
+<h3 id="EventRateLimit准入控制器相关的"><a href="#EventRateLimit准入控制器相关的" class="headerlink" title="EventRateLimit准入控制器相关的"></a>EventRateLimit准入控制器相关的</h3><p>需要配置kube apiserver以下参数,修改/etc/kubernetes/manifests/kube-apiserver.yaml文件，注意修改配置会导致apiserver重启</p>
+<ul>
+<li><p>–enable-admission-plugins=EvenetRateLimit</p>
+<p>启用EvenetRateLimit准入控制器</p>
+</li>
+<li><p>–admission-control-config-file=/etc/kubernetes/config.yaml</p>
+<p>启用EvenetRateLimit相关配置</p>
+</li>
+</ul>
+<p>同时需要配置VolumeMount和Volume字段，将配置文件印射到kube-apiserver的pod容器中</p>
+<p>如图所示的配置：具体路径可以自定义</p>
+<p><img src="/image/Kuberentes-apf/everntLimitpng.png" alt="image-20241210141800839"></p>
+<p>以下为 <code>config.yaml</code> </p>
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">apiserver.config.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">AdmissionConfiguration</span></span><br><span class="line"><span class="attr">plugins:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">EventRateLimit</span></span><br><span class="line">    <span class="attr">path:</span> <span class="string">/etc/kubernetes/eventconfig.yaml</span> <span class="comment">#容器内的路径</span></span><br></pre></td></tr></tbody></table></figure>
+
+<p>以下为<code>eventconfig.yaml</code> ，其中type总共包含四个选项，相关配置包含了上述提到的qps，burst和cacheSize(其中qps和burst是必要项，cacheSize是可选，是指桶的LRU缓存大小，同时type为server时缓存配置是被忽略的)</p>
+<ul>
+<li><code>Namespace</code> : 配置每个Namespace的限速令牌桶</li>
+<li><code>Server</code>：APIserver端收到的所有关于event的请求的限速令牌桶，包含了修改和查询请求</li>
+<li><code>User</code>: 每个User对应产生的事件生成的限速令牌桶</li>
+<li><code>SourceAndObject</code>: 根据事件的来源和涉及对象的分成各个组合，每个分配桶</li>
+</ul>
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">eventratelimit.admission.k8s.io/v1alpha1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Configuration</span></span><br><span class="line"><span class="attr">limits:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">type:</span> <span class="string">Namespace</span></span><br><span class="line">    <span class="attr">qps:</span> <span class="number">50</span></span><br><span class="line">    <span class="attr">burst:</span> <span class="number">100</span></span><br><span class="line">    <span class="attr">cacheSize:</span> <span class="number">2000</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">type:</span> <span class="string">User</span></span><br><span class="line">    <span class="attr">qps:</span> <span class="number">10</span></span><br><span class="line">    <span class="attr">burst:</span> <span class="number">50</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">type:</span> <span class="string">Server</span></span><br><span class="line">    <span class="attr">qps:</span> <span class="number">200</span></span><br><span class="line">    <span class="attr">burst:</span> <span class="number">400</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">type:</span> <span class="string">SourceAndObject</span></span><br><span class="line">    <span class="attr">qps:</span> <span class="number">100</span></span><br><span class="line">    <span class="attr">burst:</span> <span class="number">200</span></span><br></pre></td></tr></tbody></table></figure>
+
+<h3 id="Client端限流"><a href="#Client端限流" class="headerlink" title="Client端限流"></a>Client端限流</h3><p>自定义operator可以从client端进行限流，主要包含client-go的限速rateLimiter和workqueue多个不通限速器算法进行限流限速</p>
+<ul>
+<li>client-go端</li>
+</ul>
+<p><img src="/image/Kuberentes-apf/clientgo.png" alt="image-20241210145550550"></p>
+<p><img src="/image/Kuberentes-apf/RateLimiting.png" alt="image-20241210145506786"></p>
+<p>在初始化时，自定义RateLimiter的qps和burst，默认值分别是qps为5，而burst为10，但是controll-runtime侧会传入默认值，分别为默认值20和30</p>
+<h3 id="APF优先级和公平性"><a href="#APF优先级和公平性" class="headerlink" title="APF优先级和公平性"></a>APF优先级和公平性</h3><p>APF的是自1.18版本后正常默认开启的特性，启用该特性后，kube-apiserver端的总并发数量将会是–max-mutating-requests-inflight和</p>
+<p>–max-requests-inflight的总和，修改请求和查询请求不会再彼此区分，而是根据APF中的配置权重进行分配。APF进行配置，会提供以下的优势</p>
+<ul>
+<li>APF以更精细的粒度对请求进行分配和控制</li>
+<li>APF引进了队列机制，在极端的短暂突发情况下，APIServer不会拒绝任意请求，仍可正常工作，负载</li>
+<li>从队列中公平分配请求进行处理，防止极端情况，单个行为异常流量过大的controller影响所有controller</li>
+</ul>
+<p>APF主要的资源对象为两个，分别是<code>FlowSchema</code> 和<code>PriorityLevelConfiguration</code></p>
+<p>系统默认的<code>FlowSchema</code>有如下几个,以global-default举例说明：</p>
+<p><img src="/image/Kuberentes-apf/flowschema.png" alt="image-20241210155133328"></p>
+<figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get FlowSchema global-default -o yaml</span><br></pre></td></tr></tbody></table></figure>
+
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">flowcontrol.apiserver.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">FlowSchema</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">apf.kubernetes.io/autoupdate-spec:</span> <span class="string">"true"</span></span><br><span class="line">  <span class="attr">creationTimestamp:</span> <span class="string">"2024-09-06T02:01:24Z"</span></span><br><span class="line">  <span class="attr">generation:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">global-default</span></span><br><span class="line">  <span class="attr">resourceVersion:</span> <span class="string">"66"</span></span><br><span class="line">  <span class="attr">uid:</span> <span class="string">d7659c18-7f46-405c-92e1-a579b1409b54</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">distinguisherMethod:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">ByUser</span></span><br><span class="line">  <span class="attr">matchingPrecedence:</span> <span class="number">9900</span></span><br><span class="line">  <span class="attr">priorityLevelConfiguration:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">global-default</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">nonResourceRules:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">nonResourceURLs:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">      <span class="attr">verbs:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">    <span class="attr">resourceRules:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">apiGroups:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">      <span class="attr">clusterScope:</span> <span class="literal">true</span></span><br><span class="line">      <span class="attr">namespaces:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">      <span class="attr">resources:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">      <span class="attr">verbs:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">'*'</span></span><br><span class="line">    <span class="attr">subjects:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">group:</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">system:unauthenticated</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">Group</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">group:</span></span><br><span class="line">        <span class="attr">name:</span> <span class="string">system:authenticated</span></span><br><span class="line">      <span class="attr">kind:</span> <span class="string">Group</span></span><br><span class="line"><span class="attr">status:</span></span><br><span class="line">  <span class="attr">conditions:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">lastTransitionTime:</span> <span class="string">"2024-09-06T02:01:24Z"</span></span><br><span class="line">    <span class="attr">message:</span> <span class="string">This</span> <span class="string">FlowSchema</span> <span class="string">references</span> <span class="string">the</span> <span class="string">PriorityLevelConfiguration</span> <span class="string">object</span> <span class="string">named</span></span><br><span class="line">      <span class="string">"global-default"</span> <span class="string">and</span> <span class="string">it</span> <span class="string">exists</span></span><br><span class="line">    <span class="attr">reason:</span> <span class="string">Found</span></span><br><span class="line">    <span class="attr">status:</span> <span class="string">"False"</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">Dangling</span></span><br></pre></td></tr></tbody></table></figure>
+
+<p>需要关注的是spec的相关字段：</p>
+<ul>
+<li><p><strong>distinguisherMethod</strong>: (可选)</p>
+<p>该字段定义了如何计算与该模式的匹配的请求流区分符，如果设置为空，表示区分符被禁用  </p>
+<ul>
+<li><p><strong>distinguisherMethod.type</strong>:（如何存在，则必填）</p>
+<p>分为两个选项，ByUser和ByNamespace，分别代表把不同用户的请求分散到不同的流中，不同Namespace的请求分散到不同的流中，如果不设置，则所有请求会分配到同一个流中</p>
+</li>
+</ul>
+</li>
+<li><p><strong>matchingPrecedence</strong>: (必填) </p>
+<p>用于选择与给定请求匹配的一个 FlowSchema。  每个 MatchingPrecedence 值必须在 [1,10000] 的范围内。 值越小优先级越高，      请注意，如果未指定优先顺序，则其默认设为 1000</p>
+</li>
+<li><p><strong>priorityLevelConfiguration</strong>:(必填）</p>
+<p>对应引用集群中的 PriorityLevelConfiguration。 如果引用无法被解析，则会忽略此 FlowSchema，并在其状态中将其标记为无      效。</p>
+<ul>
+<li><p><strong>priorityLevelConfiguration.name</strong> :(必填）</p>
+<p>表示对应具体的PriorityLevelConfiguration的名称</p>
+</li>
+</ul>
+</li>
+<li><p><strong>rules</strong>:(必填)</p>
+<p>rules描述哪些请求将与这个流模式匹配。只有当至少一条规则与请求匹配时， 才视为此 FlowSchema 与该请求匹配。如果字段值    为空表，则 FlowSchema 不会与任何请求匹配，类似于RBAC的规则，针对API进行限制</p>
+<ul>
+<li><p><strong>rules.subjects</strong>:(必填)</p>
+<p>subjects 是此规则相关的普通用户、服务账号或组的列表。在这个列表中必须至少有一个成员。 同时包含 system:authenticated 和 system:unauthenticated 用户组的列表会与每个请求匹配</p>
+<ul>
+<li><p><strong>rules.subjects.kind</strong>:(必填)</p>
+<p>包含三个字段: <strong>User</strong>,<strong>Group</strong>,<strong>ServiceAccount</strong></p>
+</li>
+</ul>
+</li>
+<li><p><strong>rules.nonResourceRules</strong>: (必填)</p>
+<p>NonResourcePolicyRule 是根据请求的动作和目标非资源 URL 来匹配非资源请求的一种规则。 只有满足以下两个条件时，NonResourcePolicyRule 才会匹配一个请求： (a) 至少 verbs 的一个成员与请求匹配且 (b) 至少 nonResourceURLs 的一个成员与请求匹配。</p>
+<ul>
+<li><p><strong>rules.nonResourceRules.nonResourceURLs</strong>: (必填)</p>
+<p>nonResourceURLs是用户有权访问的一组 URL 前缀，不可以为空，类似如下</p>
+<p><img src="/image/Kuberentes-apf/rule.png" alt="image-20241210174920136"></p>
+</li>
+<li><p><strong>rules.nonResourceRules.verbs</strong>:(必填)</p>
+<p>verbs是与动作匹配的列表，不可以为空。<code>*</code> 与所有动作匹配。 如果存在此字符，则必须是唯一的输入项</p>
+</li>
+</ul>
+</li>
+<li><p><strong>rules.resourceRules</strong>: (可选)</p>
+<p>resourceRules 和 nonResourceRules两者必须至少有一个非空,表示了匹配规则，两者的区别就是一个针对资源型的URL吗，一个是针对非资源型的URL</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>PriorityLevelConfiguration配置如下所示:</p>
+<figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get PriorityLevelConfiguration workload-low -o yaml</span><br></pre></td></tr></tbody></table></figure>
+
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">flowcontrol.apiserver.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PriorityLevelConfiguration</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">apf.kubernetes.io/autoupdate-spec:</span> <span class="string">"true"</span></span><br><span class="line">  <span class="attr">creationTimestamp:</span> <span class="string">"2024-09-06T02:01:24Z"</span></span><br><span class="line">  <span class="attr">generation:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">workload-low</span></span><br><span class="line">  <span class="attr">resourceVersion:</span> <span class="string">"37"</span></span><br><span class="line">  <span class="attr">uid:</span> <span class="string">161b0bf0-1f60-40b5-89e9-83c9e9acfb0f</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">limited:</span></span><br><span class="line">    <span class="attr">assuredConcurrencyShares:</span> <span class="number">100</span></span><br><span class="line">    <span class="attr">limitResponse:</span></span><br><span class="line">      <span class="attr">queuing:</span></span><br><span class="line">        <span class="attr">handSize:</span> <span class="number">6</span></span><br><span class="line">        <span class="attr">queueLengthLimit:</span> <span class="number">50</span></span><br><span class="line">        <span class="attr">queues:</span> <span class="number">128</span></span><br><span class="line">      <span class="attr">type:</span> <span class="string">Queue</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">Limited</span></span><br><span class="line"><span class="attr">status:</span> {}</span><br></pre></td></tr></tbody></table></figure>
+
+<figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get PriorityLevelConfiguration  exempt -o yaml</span><br></pre></td></tr></tbody></table></figure>
+
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">flowcontrol.apiserver.k8s.io/v1beta2</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PriorityLevelConfiguration</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">apf.kubernetes.io/autoupdate-spec:</span> <span class="string">"true"</span></span><br><span class="line">  <span class="attr">creationTimestamp:</span> <span class="string">"2024-09-06T02:01:24Z"</span></span><br><span class="line">  <span class="attr">generation:</span> <span class="number">1</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">exempt</span></span><br><span class="line">  <span class="attr">resourceVersion:</span> <span class="string">"65"</span></span><br><span class="line">  <span class="attr">uid:</span> <span class="string">e517f18a-8544-4f97-9c00-7b11c876c82a</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">Exempt</span></span><br><span class="line"><span class="attr">status:</span> {}</span><br></pre></td></tr></tbody></table></figure>
+
+<p>需要关注的是spec的相关字段：</p>
+<ul>
+<li><p><strong>type</strong>:(必填)</p>
+<p>包含两个可选字段：<strong>Exempt</strong>和<strong>Limited</strong>,<strong>Exempt</strong>意味着此优先级的请求不遵从某个限制（且因此从不排队）且不会减损其他优先级可用的容量。 取值为 <strong>Limited</strong>意味着此优先级的请求遵从这些限制且服务器某些受限的容量仅可用于此优先级</p>
+</li>
+<li><p><strong>exempt</strong>:(当type为Limited时必须为空,当type为Exempt时，可为空，会取ExemptPriorityLevelConfiguration的默认值，1.21,1.25版本无相关字段，1.29后启用)</p>
+<ul>
+<li><p><strong>exempt.lendablePercent</strong>:(可选，1.21,1.25版本无相关字段，1.29后启用)</p>
+<p>规定该级别的 NominalCL 可被其他优先级租借的百分比。 此字段的值必须在 0 到 100 之间，包括 0 和 100，默认为 0。 其他级别可以从该级别借用的席位数被称为此级别的 LendableConcurrencyLimit（LendableCL），定义如下。</p>
+<p>LendableCL(i) = round( NominalCL(i) * lendablePercent(i)/100.0 )</p>
+</li>
+<li><p><strong>exempt.nominalConcurrencyShares</strong>:(必填，1.21,1.25版本无相关字段，1.29后启用，具体计算方式参考下文Limited中的assuredConcurrencyShares字段)</p>
+<p>（NCS）也被用来计算该级别的 NominalConcurrencyLimit（NominalCL）。 字段值是为该优先级保留的执行席位的数量。这一设置不限制此优先级别的调度行为， 但会通过借用机制影响其他优先级。服务器的并发限制（ServerCL）会按照各个优先级的 NCS 值按比例分配：</p>
+<p>NominalCL(i) = ceil( ServerCL * NCS(i) / sum_ncs ) sum_ncs = sum[priority level k] NCS(k)</p>
+</li>
+</ul>
+</li>
+<li><p><strong>Limited</strong>:(当且仅当 type 是Limited时，此字段必须为非空)</p>
+<p>Limited 指定如何为某个受限的优先级处理请求</p>
+<ul>
+<li><p><strong>limited.assuredConcurrencyShares</strong>:(必填,1.29后版本此字段删除，更替为<strong>nominalConcurrencyShares</strong>)</p>
+<p>字段值是为该优先级保留的执行席位的数量。这一设置不限制此优先级别的调度行为， 但会通过借用机制影响其他优先级。服务器的并发限制（ServerCL）会按照各个优先级的 ACS 值按比例分配：</p>
+<p>AssuredCL(i) = ceil( ServerCL * NCS(i) / sum_acs ) sum_acs = sum[priority level k] ACS(k)</p>
+<p><img src="/image/Kuberentes-apf/ACS.png" alt="image-20241210201251886"></p>
+<p>catch-all这个PriorityLevelConfiguration的优先级计算请求限制: 累加所有的assuredConcurrencyShares=5+20+10+30+40+100=205, 根据公式可得 （max-mutating-requests-inflight+max-requests-inflight）=200+400=600，ceil(600/205)*5=15,所以根据限制可计算出每秒放行15个请求</p>
+</li>
+<li><p><strong>limited.lendablePercent</strong> :(1.21,1.25版本无相关字段，1.29后启用，可选)</p>
+<p>规定了 NominalCL 可被其他优先级租借资源数百分比。 此字段的值必须在 0 到 100 之间，包括 0 和 100，默认为 0。 其他级别可以从该级别借用的资源数被称为此级别的 LendableConcurrencyLimit（LendableCL），定义如下。</p>
+<p>LendableCL(i) = round( NominalCL(i) * lendablePercent(i)/100.0 )</p>
+</li>
+<li><p><strong>limited.lendablePercent</strong>:(1.21,1.25版本无相关字段，1.29后启用，可选)</p>
+<p>配置如果存在，则可用来限制此优先级可以从其他优先级中租借多少资源。 该限制被称为该级别的 BorrowingConcurrencyLimit（BorrowingCL），它限制了该级别可以同时租借的资源总数。 该字段保存了该限制与该级别标称并发限制之比。当此字段非空时，必须为正整数，并按以下方式计算限制值：</p>
+<p>BorrowingCL(i) = round(NominalCL(i) * borrowingLimitPercent(i) / 100.0)</p>
+<p>该字段值可以大于100，表示该优先级可以大于自己标称并发限制（NominalCL）。当此字段为 <code>nil</code> 时，表示无限制。</p>
+</li>
+<li><p><strong>limited.limitResponse</strong> :(必填)</p>
+<p>该字段表示如何处理当前无法立即执行的请求</p>
+<ul>
+<li><p><strong>limited.limitResponse.type</strong> :(必填)</p>
+<p>该字段包含两种情况，<strong>Queue</strong>或 <strong>Reject</strong>。此字段必须设置。 <strong>Queue</strong>意味着在到达时无法被执行的请求可以被放到队列中，直到它们被执行或者队列长度超出限制为止。 <strong>Reject</strong>意味着到达时无法执行的请求将被拒绝。</p>
+</li>
+<li><p><strong>limited.limitResponse.queuing</strong> :(必填）</p>
+<p>queuing 包含排队所用的配置参数。只有 type是 Queue 时，此字段才可以为非空</p>
+<ul>
+<li><p><strong>limited.limitResponse.queuing.handSize</strong> :(必填)</p>
+<p>handSize 是一个小的正数，用于配置如何将请求随机分片到队列中。 当以该优先级将请求排队时，将对请求的流标识符（字符串对）进行哈希计算， 该哈希值用于打乱队列队列的列表，并处理此处指定的一批请求。 请求被放入这一批次中最短的队列中。 handSize 不得大于 queues，并且应该明显更小（以便几个大的流量不会使大多数队列饱和）。默认值为8</p>
+</li>
+<li><p><strong>limited.limitResponse.queuing.queueLengthLimit</strong> :(必填)</p>
+<p>是任意时刻允许在此优先级的给定队列中等待的请求数上限； 额外的请求将被拒绝。 此值必须是正数。如果未指定，则默认为 50</p>
+</li>
+<li><p><strong>limited.limitResponse.queuing.queues</strong>:(必填)</p>
+<p>该字段表示是这个优先级的队列数。此队列在每个 API 服务器上独立存在。此值必须是正数。 将其设置为 1 相当于禁止了混洗分片操作，进而使得对相关流模式的区分方法不再有意义。 此字段的默认值为 64。</p>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>关于以上的三个参数有如下的资源情况:</p>
+<pre><code>        1. queues拥有更多队列会有效减少流之间的互相干扰，但增加了kube-apiserver的内存使用量，设置为1即为禁用
+        1. queueLengthLimit越大，就可以应对更大突发流量，但是同样会增加了kube-apiserver的内存使用量
+        1. handSize调高，可以减少多个流之间的互相干扰以及高负载情况下，当个流的可用性，因为对于多个请求而言，会提高相对应的并发
+</code></pre>
+</li>
+</ul>
+<h3 id="示例demo"><a href="#示例demo" class="headerlink" title="示例demo"></a>示例demo</h3><p>以1.21的k8s为例创建以下配置</p>
+<p>flowSchema.yaml</p>
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">flowcontrol.apiserver.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">FlowSchema</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">calico-pods</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">distinguisherMethod:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">ByUser</span></span><br><span class="line">  <span class="attr">matchingPrecedence:</span> <span class="number">10</span></span><br><span class="line">  <span class="attr">priorityLevelConfiguration:</span></span><br><span class="line">    <span class="attr">name:</span> <span class="string">calico-pods</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">resourceRules:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">apiGroups:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">"crd.projectcalico.org"</span></span><br><span class="line">          <span class="attr">clusterScope:</span> <span class="literal">true</span></span><br><span class="line">          <span class="attr">namespaces:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">"*"</span></span><br><span class="line">          <span class="attr">resources:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">"*"</span></span><br><span class="line">          <span class="attr">verbs:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">"list"</span></span><br><span class="line">      <span class="attr">subjects:</span></span><br><span class="line">        <span class="bullet">-</span> <span class="attr">kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line">          <span class="attr">serviceAccount:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">calico-node</span></span><br><span class="line">            <span class="attr">namespace:</span> <span class="string">kube-system</span> </span><br></pre></td></tr></tbody></table></figure>
+
+<p>priorityLevelConfiguration.yaml</p>
+<figure class="highlight yaml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">flowcontrol.apiserver.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PriorityLevelConfiguration</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">calico-pods</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">Limited</span></span><br><span class="line">  <span class="attr">limited:</span></span><br><span class="line">    <span class="attr">assuredConcurrencyShares:</span> <span class="number">2</span></span><br><span class="line">    <span class="attr">limitResponse:</span></span><br><span class="line">      <span class="attr">queuing:</span></span><br><span class="line">        <span class="attr">handSize:</span> <span class="number">1</span></span><br><span class="line">        <span class="attr">queueLengthLimit:</span> <span class="number">20</span></span><br><span class="line">        <span class="attr">queues:</span> <span class="number">2</span></span><br><span class="line">      <span class="attr">type:</span> <span class="string">Queue</span></span><br></pre></td></tr></tbody></table></figure>
+
+<p>测试如图所示，使用如下命令：</p>
+<figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">TOKEN=$(kubectl -n kube-system get secrets calico-node-token-sdz5q -o json | jq -r .data.token | <span class="built_in">base64</span> -d)</span><br><span class="line"></span><br><span class="line"><span class="keyword">while</span> <span class="literal">true</span>; <span class="keyword">do</span> curl https://127.0.0.1:6443/apis/crd.projectcalico.org/v1/caliconodestatuses?<span class="built_in">limit</span>=500  -X GET --header <span class="string">"Authorization: Bearer <span class="variable">$TOKEN</span>"</span> -k -I; <span class="keyword">done</span></span><br><span class="line"></span><br><span class="line">kubectl get --raw /debug/api_priority_and_fairness/dump_priority_levels</span><br></pre></td></tr></tbody></table></figure>
+
+<p><img src="/image/Kuberentes-apf/curl.png" alt="image-20241210214709135"></p>
+<p><img src="/image/Kuberentes-apf/debug.png" alt="image-20241210214824900"></p>
+<h3 id="debug相关命令"><a href="#debug相关命令" class="headerlink" title="debug相关命令"></a>debug相关命令</h3><figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#获取所有优先级及其当前状态的列表</span></span><br><span class="line">kubectl get --raw /debug/api_priority_and_fairness/dump_priority_levels</span><br><span class="line"></span><br><span class="line"><span class="comment">#获取所有队列及其当前状态的列表</span></span><br><span class="line">kubectl get --raw /debug/api_priority_and_fairness/dump_queues</span><br><span class="line"></span><br><span class="line"><span class="comment">#获取当前正在队列中等待的所有请求的列表</span></span><br><span class="line">kubectl get --raw /debug/api_priority_and_fairness/dump_requests</span><br></pre></td></tr></tbody></table></figure>
+
+<h3 id="Prometheus也有相关指标"><a href="#Prometheus也有相关指标" class="headerlink" title="Prometheus也有相关指标"></a>Prometheus也有相关指标</h3><p><strong>apiserver_flowcontrol_rejected_requests_total</strong>: 记录被拒绝的请求数量（自服务器启动以来累计值）</p>
+<p><strong>apiserver_flowcontrol_dispatched_requests_total</strong>:记录开始执行的请求数量（自服务器启动以来的累积值）</p>
+<p><strong>apiserver_current_inqueue_requests</strong> :记录最近排队请求数量的高水位线</p>
+<p>等多个相关指标，具体可以查看apiserver相关的metrics</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>Author: </span><span class="post-copyright-info"><a href="https://jing21.github.io">Jing</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>Link: </span><span class="post-copyright-info"><a href="https://jing21.github.io/posts/38758.html">https://jing21.github.io/posts/38758.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>Copyright Notice: </span><span class="post-copyright-info">All articles in this blog are licensed under <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> unless stating additionally.</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a></div><div class="post_share"><div class="social-share" data-image="/image/volcano%20park.JPG" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.3/sharejs/dist/js/social-share.min.js" defer=""></script></div></div><nav class="pagination-post" id="pagination"><div class="next-post pull-full"><a href="/posts/19508.html" title="GOLANG GMP 原理与调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">Next</div><div class="next_info">GOLANG GMP 原理与调度</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>Related Articles</span></div><div class="relatedPosts-list"><div><a href="/posts/2592.html" title="Kubelet CPU管理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-06-14</div><div class="title">Kubelet CPU管理</div></div></a></div><div><a href="/posts/65526.html" title="NVIDIA共享GPU方案"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2024-06-13</div><div class="title">NVIDIA共享GPU方案</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/image/volcano%20park.JPG" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"></div><div class="author-info__name">Jing</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">Articles</div><div class="length-num">4</div></a><a href="/tags/"><div class="headline">Tags</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">Categories</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/JING21"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons is-center"><a class="social-icon" href="https://github.com/JING21" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:jameszjing21@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="/image/WechatIMG894.jpg" target="_blank" title="weixin"><i class="fab fa-weixin" style="color: #38761D;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>Announcement</span></div><div class="announcement_content">This blog shows some experience on daily work and study</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>Contents</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Kube-apiserver%E9%99%90%E6%B5%81%E9%85%8D%E7%BD%AE%E8%AF%B4%E6%98%8E"><span class="toc-number">1.</span> <span class="toc-text">Kube-apiserver限流配置说明</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A6%82%E8%BF%B0"><span class="toc-number">1.1.</span> <span class="toc-text">概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Kubernetes%E7%9B%B8%E5%85%B3%E9%85%8D%E7%BD%AE"><span class="toc-number">1.2.</span> <span class="toc-text">Kubernetes相关配置</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#kube-apiserver%E5%90%AF%E5%8A%A8%E5%8F%82%E6%95%B0%E7%9B%B8%E5%85%B3"><span class="toc-number">1.2.1.</span> <span class="toc-text">kube-apiserver启动参数相关</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#EventRateLimit%E5%87%86%E5%85%A5%E6%8E%A7%E5%88%B6%E5%99%A8%E7%9B%B8%E5%85%B3%E7%9A%84"><span class="toc-number">1.2.2.</span> <span class="toc-text">EventRateLimit准入控制器相关的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Client%E7%AB%AF%E9%99%90%E6%B5%81"><span class="toc-number">1.2.3.</span> <span class="toc-text">Client端限流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#APF%E4%BC%98%E5%85%88%E7%BA%A7%E5%92%8C%E5%85%AC%E5%B9%B3%E6%80%A7"><span class="toc-number">1.2.4.</span> <span class="toc-text">APF优先级和公平性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%A4%BA%E4%BE%8Bdemo"><span class="toc-number">1.2.5.</span> <span class="toc-text">示例demo</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#debug%E7%9B%B8%E5%85%B3%E5%91%BD%E4%BB%A4"><span class="toc-number">1.2.6.</span> <span class="toc-text">debug相关命令</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Prometheus%E4%B9%9F%E6%9C%89%E7%9B%B8%E5%85%B3%E6%8C%87%E6%A0%87"><span class="toc-number">1.2.7.</span> <span class="toc-text">Prometheus也有相关指标</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>Recent Post</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/38758.html" title="Kuberentes kube-apiserver限流方案">Kuberentes kube-apiserver限流方案</a><time datetime="2025-11-07T07:57:34.000Z" title="Created 2025-11-07 15:57:34">2025-11-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/19508.html" title="GOLANG GMP 原理与调度">GOLANG GMP 原理与调度</a><time datetime="2025-07-08T08:10:26.000Z" title="Created 2025-07-08 16:10:26">2025-07-08</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/2592.html" title="Kubelet CPU管理">Kubelet CPU管理</a><time datetime="2024-06-14T02:32:09.000Z" title="Created 2024-06-14 10:32:09">2024-06-14</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/65526.html" title="NVIDIA共享GPU方案">NVIDIA共享GPU方案</a><time datetime="2024-06-13T08:18:35.000Z" title="Created 2024-06-13 16:18:35">2024-06-13</time></div></div></div></div></div></div></main><footer id="footer" style="background: transparent"><div id="footer-wrap"><div class="copyright">©2020 - 2025 By Jing</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="Read Mode"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="Toggle Between Light And Dark Mode"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="Toggle between Single-column and Double-column"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="Setting"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="Table Of Contents"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="Back To Top"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=4.13.0"></script><script src="/js/main.js?v=4.13.0"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0.33/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"></div><script async="" data-pjax="" src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">Search</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  Loading the Database</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="Search for Posts" type="text"></div></div><hr><div id="local-search-results"></div><div id="local-search-stats-wrap"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=4.13.0"></script></div></div></body></html>
